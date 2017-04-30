@@ -303,6 +303,10 @@ enum BigO { oNone, o1, oN, oNSquared, oNCubed, oLogN, oNLogN, oAuto, oLambda };
 // computational complexity for the benchmark.
 typedef double(BigOFunc)(int);
 
+// If itercountAutoDetect is passed to Iterations() instead of any non-zero value,
+// then the number of iterations is deduced automatically
+enum IterationCountMode { itercountAutoDetect = 0};
+
 namespace internal {
 class ThreadTimer;
 class ThreadManager;
@@ -676,7 +680,8 @@ class Benchmark {
   TimeUnit time_unit_;
   int range_multiplier_;
   double min_time_;
-  size_t iterations_;
+  std::vector<size_t> iterations_; //TODO Use uint64_t for iterations
+  size_t next_iterations_value_;
   int repetitions_;
   bool use_real_time_;
   bool use_manual_time_;

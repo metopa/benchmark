@@ -134,17 +134,17 @@ bool BenchmarkFamilies::FindBenchmarks(
     // family size.
     if (spec == ".") benchmarks->reserve(family_size);
 
-    for (auto const& args : family->args_) {
+    for (size_t i = 0; i < family->args_.size(); i++) {
       for (int num_threads : *thread_counts) {
         Benchmark::Instance instance;
         instance.name = family->name_;
         instance.benchmark = family.get();
         instance.report_mode = family->report_mode_;
-        instance.arg = args;
+        instance.arg = family->args_[i];
         instance.time_unit = family->time_unit_;
         instance.range_multiplier = family->range_multiplier_;
         instance.min_time = family->min_time_;
-        instance.iterations = family->iterations_;
+        instance.iterations = family->iterations_[i];
         instance.repetitions = family->repetitions_;
         instance.use_real_time = family->use_real_time_;
         instance.use_manual_time = family->use_manual_time_;
@@ -154,7 +154,7 @@ bool BenchmarkFamilies::FindBenchmarks(
 
         // Add arguments to instance name
         size_t arg_i = 0;
-        for (auto const& arg : args) {
+        for (auto const& arg : family->args_[i]) {
           instance.name += "/";
 
           if (arg_i < family->arg_names_.size()) {
@@ -171,8 +171,12 @@ bool BenchmarkFamilies::FindBenchmarks(
 
         if (!IsZero(family->min_time_))
           instance.name += StringPrintF("/min_time:%0.3f", family->min_time_);
-        if (family->iterations_ != 0)
-          instance.name += StringPrintF("/iterations:%d", family->iterations_);
+        if (family->iterations_[i] != 0) {
+          if (sizeof(family->iterations_[i]) == 8)
+            instance.name += StringPrintF("/iterations:%llu", family->iterations_[i]);
+          else
+            instance.name += StringPrintF("/iterations:%u", family->iterations_[i]);
+        }
         if (family->repetitions_ != 0)
           instance.name += StringPrintF("/repeats:%d", family->repetitions_);
 
@@ -188,7 +192,7 @@ bool BenchmarkFamilies::FindBenchmarks(
         }
 
         if (re.Match(instance.name)) {
-          instance.last_benchmark_instance = (&args == &family->args_.back());
+          instance.last_benchmark_instance = (i == family->args_.size() - 1);
           benchmarks->push_back(std::move(instance));
         }
       }
@@ -222,7 +226,7 @@ Benchmark::Benchmark(const char* name)
       time_unit_(kNanosecond),
       range_multiplier_(kRangeMultiplier),
       min_time_(0),
-      iterations_(0),
+      next_iterations_value_(itercountAutoDetect),
       repetitions_(0),
       use_real_time_(false),
       use_manual_time_(false),
@@ -257,6 +261,7 @@ void Benchmark::AddRange(std::vector<int>* dst, int lo, int hi, int mult) {
 Benchmark* Benchmark::Arg(int x) {
   CHECK(ArgsCnt() == -1 || ArgsCnt() == 1);
   args_.push_back({x});
+  iterations_.push_back(next_iterations_value_);
   return this;
 }
 
@@ -272,6 +277,7 @@ Benchmark* Benchmark::Range(int start, int limit) {
 
   for (int i : arglist) {
     args_.push_back({i});
+    iterations_.push_back(next_iterations_value_);
   }
   return this;
 }
@@ -297,6 +303,7 @@ Benchmark* Benchmark::Ranges(const std::vector<std::pair<int, int>>& ranges) {
     }
 
     args_.push_back(std::move(tmp));
+    iterations_.push_back(next_iterations_value_);
 
     for (std::size_t j = 0; j < arglists.size(); j++) {
       if (ctr[j] + 1 < arglists[j].size()) {
@@ -327,6 +334,7 @@ Benchmark* Benchmark::DenseRange(int start, int limit, int step) {
   CHECK_LE(start, limit);
   for (int arg = start; arg <= limit; arg += step) {
     args_.push_back({arg});
+    iterations_.push_back(next_iterations_value_);
   }
   return this;
 }
@@ -334,6 +342,7 @@ Benchmark* Benchmark::DenseRange(int start, int limit, int step) {
 Benchmark* Benchmark::Args(const std::vector<int>& args) {
   CHECK(ArgsCnt() == -1 || ArgsCnt() == static_cast<int>(args.size()));
   args_.push_back(args);
+  iterations_.push_back(next_iterations_value_);
   return this;
 }
 
@@ -351,7 +360,11 @@ Benchmark* Benchmark::RangeMultiplier(int multiplier) {
 
 Benchmark* Benchmark::MinTime(double t) {
   CHECK(t > 0.0);
-  CHECK(iterations_ == 0);
+  for (const auto& i : iterations_) {
+    (void)i;
+    CHECK(i == 0);
+  }
+  CHECK(next_iterations_value_ == 0);
   min_time_ = t;
   return this;
 }
@@ -360,7 +373,7 @@ Benchmark* Benchmark::MinTime(double t) {
 Benchmark* Benchmark::Iterations(size_t n) {
   CHECK(n > 0);
   CHECK(IsZero(min_time_));
-  iterations_ = n;
+  next_iterations_value_ = n;
   return this;
 }
 
