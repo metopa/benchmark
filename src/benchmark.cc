@@ -286,7 +286,7 @@ std::vector<BenchmarkReporter::Run> RunBenchmark(
   std::vector<BenchmarkReporter::Run> reports;  // return value
 
   const bool has_explicit_iteration_count = b.iterations != 0;
-  size_t iters = has_explicit_iteration_count ? b.iterations : 1;
+  size_t iters = has_explicit_iteration_count ? b.iterations / b.threads : 1;
   std::unique_ptr<internal::ThreadManager> manager;
   std::vector<std::thread> pool(b.threads - 1);
   const int repeats =
